@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" fill="#141a1c"/>
+  <!-- 地図のピン -->
+  <path d="M256 84c-62 0-112 50-112 112 0 78 92 168 106 181a9 9 0 0 0 12 0c14-13 106-103 106-181 0-62-50-112-112-112z"
+        fill="#0f7b8a"/>
+  <!-- サウナストーン -->
+  <circle cx="226" cy="222" r="20" fill="#fdf8ef"/>
+  <circle cx="268" cy="230" r="15" fill="#fdf8ef" opacity=".82"/>
+  <circle cx="252" cy="196" r="13" fill="#fdf8ef" opacity=".66"/>
+  <!-- 湯気 -->
+  <path d="M222 158c0-14 12-14 12-28s-12-14-12-28" stroke="#fdf8ef" stroke-width="11"
+        stroke-linecap="round" fill="none" opacity=".9"/>
+  <path d="M272 162c0-12 11-12 11-25s-11-12-11-25" stroke="#fdf8ef" stroke-width="11"
+        stroke-linecap="round" fill="none" opacity=".6"/>
+</svg>

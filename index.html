@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, viewport-fit=cover">
+<title>サ道 サウナマップ</title>
+<meta name="description" content="ドラマ『サ道』シリーズに登場したサウナ施設を地図にまとめました。男性専用か女性も入れるか、料金・定休日・営業時間つき。">
+<meta name="theme-color" content="#141a1c">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="サ道マップ">
+<link rel="stylesheet" href="vendor/leaflet.css">
+<link rel="stylesheet" href="vendor/markercluster.css">
+<link rel="stylesheet" href="vendor/markercluster-default.css">
+<style>
+  :root{
+    --bg:#f6f2ea; --panel:#fffdf7; --ink:#22201b; --muted:#6d665c;
+    --line:#e2dacc; --accent:#0f7b8a; --accent-ink:#fff;
+    --shadow:0 6px 24px rgba(40,50,55,.18);
+    --safe-b:env(safe-area-inset-bottom,0px);
+    --safe-t:env(safe-area-inset-top,0px);
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;
+    color:var(--ink); background:var(--bg);
+    -webkit-text-size-adjust:100%;
+    overscroll-behavior:none;
+  }
+  #map{position:fixed;inset:0;z-index:1;background:#e6e1d6}
+
+  /* ---- 上部バー ---- */
+  header{
+    position:fixed;z-index:1000;top:0;left:0;right:0;
+    padding:calc(var(--safe-t) + 8px) 10px 8px;
+    display:flex;gap:8px;align-items:center;
+    background:linear-gradient(#f6f2eaee,#f6f2eacc 70%,#f6f2ea00);
+    pointer-events:none;
+  }
+  header>*{pointer-events:auto}
+  .brand{
+    display:flex;flex-direction:column;line-height:1.15;
+    background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:7px 11px;box-shadow:var(--shadow);
+  }
+  .brand b{font-size:15px;letter-spacing:.01em}
+  .brand span{font-size:11px;color:var(--muted);margin-top:2px}
+  .btn{
+    appearance:none;border:1px solid var(--line);background:var(--panel);
+    color:var(--ink);border-radius:12px;padding:9px 13px;font-size:14px;
+    font-family:inherit;box-shadow:var(--shadow);cursor:pointer;white-space:nowrap;
+    min-height:42px;
+  }
+  .btn:active{transform:translateY(1px)}
+  .spacer{flex:1}
+
+  /* ---- ホーム画面に追加の案内（iPhone の Safari でだけ出す） ---- */
+  #a2hs{
+    position:fixed;z-index:1002;left:10px;right:10px;
+    top:calc(var(--safe-t) + 62px);
+    display:flex;gap:8px;align-items:center;
+    padding:9px 10px 9px 13px;border-radius:12px;
+    background:var(--panel);border:1px solid var(--line);box-shadow:var(--shadow);
+    font-size:11.5px;line-height:1.4;color:var(--muted);
+  }
+  #a2hs[hidden]{display:none}
+  #a2hs b{color:var(--accent)}
+  #a2hs button{
+    flex:none;width:28px;height:28px;border-radius:8px;border:0;background:transparent;
+    color:var(--muted);font-size:14px;cursor:pointer;
+  }
+
+  /* ---- 下部パネル ---- */
+  #panel{
+    position:fixed;z-index:1001;left:0;right:0;bottom:0;
+    max-height:min(78vh,660px);
+    background:var(--panel);border-top:1px solid var(--line);
+    border-radius:18px 18px 0 0;box-shadow:0 -8px 30px rgba(40,50,55,.2);
+    transform:translateY(100%);
+    transition:transform .28s cubic-bezier(.32,.72,0,1);
+    display:flex;flex-direction:column;
+    padding-bottom:var(--safe-b);
+  }
+  #panel.open{transform:translateY(0)}
+  .grip{padding:10px 0 4px;text-align:center;flex:none;cursor:pointer}
+  .grip i{display:inline-block;width:38px;height:4px;border-radius:2px;background:#d6ccbc}
+  .panel-body{overflow-y:auto;-webkit-overflow-scrolling:touch;padding:4px 14px 16px}
+  .row{display:flex;gap:8px;align-items:center;margin:10px 0}
+  input[type=search]{
+    flex:1;min-width:0;font:inherit;font-size:16px;padding:10px 12px;
+    border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink);
+  }
+  h2{font-size:12px;letter-spacing:.08em;color:var(--muted);margin:16px 0 8px;font-weight:600}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{
+    font-size:12.5px;padding:7px 10px;border-radius:999px;cursor:pointer;
+    border:1px solid var(--line);background:#fff;color:var(--muted);
+    display:flex;align-items:center;gap:6px;user-select:none;
+  }
+  .chip .dot{width:9px;height:9px;border-radius:50%;flex:none;box-shadow:0 0 0 1px #0002 inset}
+  .chip.on{color:#fff;border-color:transparent}
+  .chip.on .dot{background:#fff !important;box-shadow:none}
+  .chip.mini{padding:6px 11px;background:#fff;color:var(--muted);border-color:var(--line)}
+  .chip.mini:active{background:#eee7db}
+  .note{font-size:11.5px;color:var(--muted);line-height:1.65;margin-top:14px}
+  .note a{color:var(--accent)}
+
+  /* ---- リスト ---- */
+  .list{margin-top:6px;border-top:1px solid var(--line)}
+  .item{
+    width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line);
+    padding:11px 2px;display:flex;gap:10px;align-items:flex-start;font:inherit;cursor:pointer;
+  }
+  .item:active{background:#f1eade}
+  .item .dot{width:10px;height:10px;border-radius:50%;margin-top:5px;flex:none}
+  .item .t{flex:1;min-width:0}
+  .item .n{font-size:14.5px;font-weight:600;display:block}
+  .item .m{font-size:11.5px;color:var(--muted);margin-top:2px;display:block}
+  .item .d{font-size:10.5px;flex:none;padding-top:3px;white-space:nowrap;font-weight:600}
+  .gone .n{text-decoration:line-through;color:var(--muted)}
+
+  /* ---- マーカー ---- */
+  .pin{
+    width:24px;height:24px;border-radius:50% 50% 50% 6px;transform:rotate(-45deg);
+    border:2px solid #fff;box-shadow:0 2px 5px rgba(0,0,0,.35);
+  }
+  .pin.sex-male{border-color:#cfe4f5}
+  .pin.gone{background:#9a938b !important;opacity:.85}
+  .pin.gone::after{
+    content:"";position:absolute;left:3px;right:3px;top:10px;height:2px;
+    background:#fff;transform:rotate(45deg);
+  }
+  .pin.ref{opacity:.55;border-style:dashed}
+  .marker-cluster{background:#0f7b8a55}
+  .marker-cluster div{background:#0f7b8a;color:#fff;font-weight:600;font-family:inherit}
+
+  /* ---- ポップアップ ---- */
+  .leaflet-popup-content-wrapper{border-radius:14px;box-shadow:var(--shadow)}
+  .leaflet-popup-content{
+    margin:12px 13px;width:258px !important;font-size:12.5px;line-height:1.45;
+    /* 画面からはみ出すと autoPan が暴れるので、見えている高さに収める */
+    max-height:calc(100vh - var(--pop-reserve, 168px));
+    max-height:calc(100dvh - var(--pop-reserve, 168px));
+    overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;
+  }
+  .pop-name{font-size:15px;font-weight:700;margin:0 0 2px;line-height:1.3}
+  .pop-badges{display:flex;flex-wrap:wrap;gap:5px;margin:6px 0 8px}
+  .badge{font-size:10.5px;padding:3px 7px;border-radius:999px;background:#ece5d8;color:#5a5248;white-space:nowrap}
+  .badge.b-series{color:#fff}
+  .badge.b-male{background:#2f6f9e;color:#fff}
+  .badge.b-both{background:#2f7d5c;color:#fff}
+  .badge.b-gone{background:#8d8781;color:#fff}
+  .pop-eps{margin:0 0 9px;padding:0;list-style:none}
+  .pop-eps li{font-size:11.5px;line-height:1.5;color:var(--muted)}
+  .pop-eps b{color:var(--ink);font-weight:600}
+  .pop-tbl{width:100%;border-collapse:collapse}
+  .pop-tbl th{
+    text-align:left;font-weight:600;color:var(--muted);font-size:10.5px;
+    white-space:nowrap;vertical-align:top;padding:3px 8px 3px 0;
+  }
+  .pop-tbl td{padding:3px 0;vertical-align:top}
+  .pop-tbl .tel{white-space:nowrap}
+  .pop-memo{font-size:11.5px;color:var(--muted);line-height:1.55;margin:9px 0 0}
+  .pop-links{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px}
+  .pop-links a{
+    font-size:11.5px;text-decoration:none;padding:6px 9px;border-radius:8px;
+    background:var(--accent);color:#fff;
+  }
+  .pop-links a.ghost{background:#ece5d8;color:#4a4239}
+  .warn{font-size:10.5px;color:#8a5324;margin-top:8px}
+
+  @media (min-width:760px){
+    #panel{left:auto;right:14px;bottom:14px;width:400px;border-radius:18px;
+           max-height:calc(100vh - 110px);border:1px solid var(--line)}
+    #panel:not(.open){transform:translateY(calc(100% + 20px))}
+  }
+  @media (prefers-color-scheme:dark){
+    :root{--bg:#16191a;--panel:#1f2325;--ink:#eef0ee;--muted:#9ea6a6;--line:#333a3c;
+          --shadow:0 6px 24px rgba(0,0,0,.5)}
+    header{background:linear-gradient(#16191aee,#16191acc 70%,#16191a00)}
+    input[type=search],.chip,.chip.mini{background:#282d2f;color:var(--ink);border-color:var(--line)}
+    .chip.mini:active{background:#333a3c}
+    .item:active{background:#282d2f}
+    .badge{background:#333a3c;color:#d3d8d6}
+    .pop-links a.ghost{background:#333a3c;color:#e0e5e3}
+    .grip i{background:#3d4547}
+    .leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--panel);color:var(--ink)}
+  }
+</style>
+</head>
+<body>
+<div id="map"></div>
+
+<header>
+  <div class="brand">
+    <b>サ道 サウナマップ</b>
+    <span id="count">読み込み中…</span>
+  </div>
+  <div class="spacer"></div>
+  <button class="btn" id="locate" title="現在地">📍</button>
+  <button class="btn" id="toggle">絞り込み</button>
+</header>
+
+<div id="a2hs" hidden>
+  <span>下の<b>共有ボタン</b>から<b>「ホーム画面に追加」</b>にすると、アドレスバーが消えて全画面で使えます</span>
+  <button type="button" id="a2hsClose" aria-label="閉じる">✕</button>
+</div>
+
+<div id="panel">
+  <div class="grip" id="grip"><i></i></div>
+  <div class="panel-body">
+    <div class="row">
+      <input type="search" id="q" placeholder="施設名・地名・話数で検索" autocomplete="off">
+    </div>
+
+    <h2>だれが入れるか</h2>
+    <div class="chips" id="sexChips"></div>
+
+    <h2>登場のしかた</h2>
+    <div class="chips" id="roleChips"></div>
+
+    <h2>シリーズ</h2>
+    <div class="row" style="margin:0 0 8px">
+      <span class="chip mini" id="selAll">すべて選択</span>
+      <span class="chip mini" id="selNone">すべて解除</span>
+      <span class="chip mini" id="selDrama">連続ドラマだけ</span>
+    </div>
+    <div class="chips" id="seriesChips"></div>
+
+    <h2>表示中の施設 <span id="listCount"></span></h2>
+    <div class="list" id="list"></div>
+
+    <p class="note" id="credit"></p>
+  </div>
+</div>
+
+<script src="vendor/leaflet.js"></script>
+<script src="vendor/markercluster.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  // だれが入れるか。ドラマに出てくる施設は男性専用が多いので、ここを最初の絞り込みにしている。
+  var SEX = {
+    both:    { label: "男女とも可",   color: "#2f7d5c", badge: "b-both" },
+    male:    { label: "男性専用",     color: "#2f6f9e", badge: "b-male" },
+    closed:  { label: "閉館",         color: "#8d8781", badge: "b-gone" },
+    private: { label: "一般利用不可", color: "#8d8781", badge: "b-gone" }
+  };
+
+  var ROLE = {
+    main:      { label: "メイン",   short: "" },
+    sub:       { label: "登場",     short: "登場" },
+    flashback: { label: "回想",     short: "回想" },
+    footage:   { label: "参考映像", short: "参考映像" }
+  };
+  // メイン／登場をまとめて「実際に訪れた回」、回想／参考映像を「ちらっと出た回」として絞り込む
+  var ROLE_GROUP = { main: "visit", sub: "visit", flashback: "cameo", footage: "cameo" };
+  var ROLE_GROUPS = {
+    visit: { label: "本編で訪れた施設", color: "#0f7b8a" },
+    cameo: { label: "回想・参考映像",   color: "#94908a" }
+  };
+
+  var SERIES_COLORS = {
+    s1: "#c0522a", sp2019: "#2f6f9e", sp2021w: "#7a6cc4", s2: "#1f7a6a",
+    sp2022: "#9a4f8e", sp2023: "#b0862a", sp2024: "#b4443c",
+    offroad: "#4f7d2c", sp2025: "#2b8fa0"
+  };
+
+  var map = L.map("map", { zoomControl: false }).setView([35.68, 139.75], 11);
+  L.control.zoom({ position: "bottomleft" }).addTo(map);
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+  }).addTo(map);
+
+  var cluster = L.markerClusterGroup({
+    maxClusterRadius: 45,
+    spiderfyOnMaxZoom: true,
+    showCoverageOnHover: false,
+    disableClusteringAtZoom: 16
+  }).addTo(map);
+
+  var saunas = [], series = [], seriesName = {}, seriesAir = {};
+  var active = {
+    series: null,
+    sexes: { both: true, male: true, closed: true, private: true },
+    groups: { visit: true, cameo: true },
+    q: ""
+  };
+
+  var $ = function (id) { return document.getElementById(id); };
+  var esc = function (s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  };
+
+  function epLabel(a) {
+    var n = seriesName[a.s] || a.s;
+    return a.ep ? n + " 第" + a.ep + "話" : n;
+  }
+
+  function mainSeries(s) { return s.series[0]; }
+
+  // 一覧に出す代表の回。回想だけの施設もあるので、メイン→登場→その他の順で選ぶ。
+  function primaryApp(s) {
+    var order = ["main", "sub", "flashback", "footage"];
+    return s.apps.slice().sort(function (a, b) {
+      return order.indexOf(a.role) - order.indexOf(b.role);
+    })[0];
+  }
+  function colorOf(s) { return SERIES_COLORS[mainSeries(s)] || "#6b625a"; }
+
+  function popupHtml(s) {
+    var sex = SEX[s.sex] || SEX.both;
+    var h = '<p class="pop-name">' + esc(s.name) + "</p>";
+
+    h += '<div class="pop-badges">';
+    s.series.forEach(function (k) {
+      h += '<span class="badge b-series" style="background:' + SERIES_COLORS[k] + '">'
+         + esc(seriesName[k]) + "</span>";
+    });
+    h += '<span class="badge ' + sex.badge + '">' + sex.label + "</span>";
+    if (s.reserve) h += '<span class="badge">' + esc(s.reserve) + "</span>";
+    if (s.limited) h += '<span class="badge">' + esc(s.limited) + "</span>";
+    h += "</div>";
+
+    h += '<ul class="pop-eps">';
+    s.apps.forEach(function (a) {
+      var tag = ROLE[a.role].short;
+      h += "<li><b>" + esc(epLabel(a)) + "</b>"
+         + (a.title ? "「" + esc(a.title) + "」" : "")
+         + (tag ? "（" + tag + "）" : "") + "</li>";
+    });
+    h += "</ul>";
+
+    h += '<table class="pop-tbl">';
+    h += "<tr><th>だれが</th><td>" + esc(s.sex_note) + "</td></tr>";
+    h += "<tr><th>料金</th><td>" + esc(s.fee_short) + "</td></tr>";
+    h += "<tr><th>定休日</th><td>" + esc(s.holiday) + "</td></tr>";
+    h += "<tr><th>営業時間</th><td>" + esc(s.hours_short) + "</td></tr>";
+    h += "<tr><th>住所</th><td>" + esc(s.address)
+       + (s.tel ? ' <a class="tel" href="tel:' + esc(s.tel) + '">' + esc(s.tel) + "</a>" : "")
+       + "</td></tr>";
+    h += "</table>";
+
+    if (s.memo) h += '<p class="pop-memo">' + esc(s.memo) + "</p>";
+    if (s.caution) h += '<p class="warn">※ ' + esc(s.caution) + "</p>";
+
+    var q = encodeURIComponent(s.name + " " + s.address);
+    h += '<div class="pop-links">'
+       + (s.hp ? '<a href="' + esc(s.hp) + '" target="_blank" rel="noopener">公式サイト</a>' : "")
+       + '<a class="ghost" href="https://www.google.com/maps/search/?api=1&query=' + q
+       + '" target="_blank" rel="noopener">Googleマップ</a>'
+       + (s.ikitai ? '<a class="ghost" href="' + esc(s.ikitai)
+                   + '" target="_blank" rel="noopener">サウナイキタイ</a>' : "")
+       + "</div>";
+    return h;
+  }
+
+  function makeMarker(s) {
+    var cls = "pin sex-" + s.sex;
+    if (s.sex === "closed" || s.sex === "private") cls += " gone";
+    else if (s.roles.indexOf("main") === -1 && s.roles.indexOf("sub") === -1) cls += " ref";
+    var icon = L.divIcon({
+      className: "",
+      html: '<div class="' + cls + '" style="background:' + colorOf(s) + '"></div>',
+      iconSize: [24, 24], iconAnchor: [12, 22], popupAnchor: [0, -20]
+    });
+    var m = L.marker([s.lat, s.lng], { icon: icon, title: s.name });
+    // autoPan は中身の高さが変わるとずれるので切って、fitPopup で自前で寄せる
+    m.bindPopup(function () { return popupHtml(s); }, { maxWidth: 288, autoPan: false });
+    s._marker = m;
+    s._hay = [s.name, s.address, s.memo, s.sex_note,
+              s.apps.map(function (a) { return epLabel(a) + " " + a.title; }).join(" ")]
+             .join(" ").toLowerCase();
+    return m;
+  }
+
+  function matches(s) {
+    if (!active.sexes[s.sex]) return false;
+    if (!s.apps.some(function (a) { return active.groups[ROLE_GROUP[a.role]]; })) return false;
+    if (active.series && !s.series.some(function (k) { return active.series[k]; })) return false;
+    if (active.q && s._hay.indexOf(active.q) === -1) return false;
+    return true;
+  }
+
+  // クラスタを作り直すと開いているポップアップごと消えてしまうので、
+  // 絞り込みが実際に変わったときだけマーカーを入れ替える。
+  var shown = [], lastFilter = null;
+
+  function applyFilter() {
+    var key = JSON.stringify([active.q, active.sexes, active.groups, active.series]);
+    if (key === lastFilter) return;
+    lastFilter = key;
+
+    var opened = null;
+    for (var i = 0; i < saunas.length; i++) {
+      if (saunas[i]._marker && saunas[i]._marker.isPopupOpen()) { opened = saunas[i]; break; }
+    }
+
+    shown = saunas.filter(matches);
+    cluster.clearLayers();
+    cluster.addLayers(shown.map(function (s) { return s._marker; }));
+    $("count").textContent = shown.length + " / " + saunas.length + " 施設を表示中";
+    $("listCount").textContent = "(" + shown.length + ")";
+
+    if (opened && shown.indexOf(opened) !== -1) opened._marker.openPopup();
+    renderList();
+  }
+
+  // リストから選んだとき。地図が落ち着いてからポップアップを開く。
+  // クラスタに畳まれたままだと開けないので、その場合はほどけるのを待つ。
+  function focusSauna(s) {
+    setPanel(false);
+    var done = false;
+    var open = function () {
+      if (done) return;
+      done = true;
+      if (s._marker._map) s._marker.openPopup();
+      else cluster.zoomToShowLayer(s._marker, function () { s._marker.openPopup(); });
+    };
+    map.once("moveend", open);
+    map.setView([s.lat, s.lng], Math.max(map.getZoom(), 16), { animate: true });
+    setTimeout(open, 700);   // 地図が動かなかったときの保険
+  }
+
+  function renderList() {
+    var center = map.getCenter();
+    var sorted = shown.slice().sort(function (a, b) {
+      return (Math.pow(a.lat - center.lat, 2) + Math.pow(a.lng - center.lng, 2))
+           - (Math.pow(b.lat - center.lat, 2) + Math.pow(b.lng - center.lng, 2));
+    }).slice(0, 60);
+
+    var list = $("list");
+    list.innerHTML = "";
+    sorted.forEach(function (s) {
+      var sex = SEX[s.sex] || SEX.both;
+      var gone = s.sex === "closed" || s.sex === "private";
+      var b = document.createElement("button");
+      b.className = "item" + (gone ? " gone" : "");
+      b.innerHTML = '<span class="dot" style="background:' + colorOf(s) + '"></span>'
+        + '<span class="t"><span class="n">' + esc(s.name) + "</span>"
+        + '<span class="m">' + esc(epLabel(primaryApp(s)))
+        + "・定休日 " + esc(s.holiday) + "</span></span>"
+        + '<span class="d" style="color:' + sex.color + '">' + sex.label + "</span>";
+      b.onclick = function () { focusSauna(s); };
+      list.appendChild(b);
+    });
+  }
+
+  function setPanel(open) {
+    $("panel").classList.toggle("open", open);
+    if (open) renderList();   // リストは地図の中心から近い順なので開くたびに並べ直す
+  }
+
+  function paint(el, on) {
+    el.classList.toggle("on", on);
+    el.style.background = on ? el.dataset.color : "";
+  }
+
+  function toggleChips(boxId, defs, keys, store) {
+    var box = $(boxId);
+    keys.forEach(function (k) {
+      var el = document.createElement("span");
+      el.className = "chip";
+      el.dataset.color = defs[k].color;
+      el.innerHTML = '<i class="dot" style="background:' + defs[k].color + '"></i>' + defs[k].label;
+      paint(el, true);
+      el.onclick = function () {
+        store[k] = !store[k];
+        paint(el, store[k]);
+        applyFilter();
+      };
+      box.appendChild(el);
+    });
+  }
+
+  function buildSeriesChips() {
+    var box = $("seriesChips");
+    series.forEach(function (k) {
+      var el = document.createElement("span");
+      el.className = "chip";
+      el.dataset.series = k;
+      el.dataset.color = SERIES_COLORS[k];
+      el.innerHTML = '<i class="dot" style="background:' + SERIES_COLORS[k] + '"></i>'
+                   + esc(seriesName[k]);
+      el.title = seriesAir[k];
+      paint(el, true);
+      el.onclick = function () {
+        if (!active.series) {
+          active.series = {};
+          series.forEach(function (n) { active.series[n] = true; });
+        }
+        active.series[k] = !active.series[k];
+        paint(el, active.series[k]);
+        applyFilter();
+      };
+      box.appendChild(el);
+    });
+  }
+
+  function setSeries(pred) {
+    active.series = {};
+    series.forEach(function (k) { active.series[k] = pred(k); });
+    [].forEach.call(document.querySelectorAll("#seriesChips .chip"), function (el) {
+      paint(el, active.series[el.dataset.series]);
+    });
+    applyFilter();
+  }
+
+  // 描画が始まる前に読み込みが終わると、Leaflet が地図の大きさを 0 のまま覚えてしまい、
+  // fitBounds が世界地図まで引いてしまう。大きさが測れるようになるまで待ってから合わせる。
+  function fitInitial(bounds, tries) {
+    map.invalidateSize(false);
+    if (!map.getSize().x) {
+      if ((tries || 0) < 40) setTimeout(function () { fitInitial(bounds, (tries || 0) + 1); }, 100);
+      return;
+    }
+    map.fitBounds(bounds, { animate: false, maxZoom: 12 });
+    renderList();
+  }
+
+  // Leaflet の autoPan は中身の高さが変わるとずれたままになるので、
+  // 実際の位置を測って、はみ出したぶんだけ自分で地図を寄せる。
+  function fitPopup(popup) {
+    var el = popup.getElement();
+    if (!el || !popup.isOpen()) return;
+    var box = map.getContainer().getBoundingClientRect();
+    var r = el.getBoundingClientRect();
+    var hint = $("a2hs");
+    var padTop = hint.hidden ? 68 : hint.getBoundingClientRect().bottom - box.top + 8;
+    var padBottom = 16, padSide = 12, dx = 0, dy = 0;
+    if (r.top < box.top + padTop) dy = r.top - (box.top + padTop);
+    else if (r.bottom > box.bottom - padBottom) {
+      dy = Math.min(r.bottom - (box.bottom - padBottom), r.top - (box.top + padTop));
+    }
+    if (r.left < box.left + padSide) dx = r.left - (box.left + padSide);
+    else if (r.right > box.right - padSide) dx = r.right - (box.right - padSide);
+    if (dx || dy) map.panBy([dx, dy], { animate: true, duration: 0.25 });
+  }
+
+  map.on("popupopen", function (e) {
+    var popup = e.popup;
+    var fit = function () { fitPopup(popup); };
+    setTimeout(fit, 60);
+    setTimeout(fit, 420);   // 一覧から飛んだときは地図がまだ動いているので、落ち着いてからもう一度
+  });
+
+  // iPhone の Safari で開いているときだけ、ホーム画面に追加すると全画面になる旨を一度だけ出す
+  (function () {
+    var iOS = /iP(hone|od|ad)/.test(navigator.platform)
+           || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.platform));
+    var standalone = window.navigator.standalone
+                  || window.matchMedia("(display-mode: standalone)").matches;
+    var hidden = false;
+    try { hidden = localStorage.getItem("a2hs") === "off"; } catch (e) { hidden = false; }
+    if (!iOS || standalone || hidden) return;
+    var bar = $("a2hs");
+    bar.hidden = false;
+    document.documentElement.style.setProperty("--pop-reserve", "220px");
+    $("a2hsClose").onclick = function () {
+      bar.hidden = true;
+      document.documentElement.style.removeProperty("--pop-reserve");
+      try { localStorage.setItem("a2hs", "off"); } catch (e) { /* プライベートモード */ }
+    };
+  })();
+
+  $("toggle").onclick = function () { setPanel(!$("panel").classList.contains("open")); };
+  $("grip").onclick   = function () { setPanel(false); };
+  $("selAll").onclick  = function () { setSeries(function () { return true; }); };
+  $("selNone").onclick = function () { setSeries(function () { return false; }); };
+  $("selDrama").onclick = function () { setSeries(function (k) { return k === "s1" || k === "s2"; }); };
+  $("q").oninput = function () { active.q = this.value.trim().toLowerCase(); applyFilter(); };
+  $("locate").onclick = function () { map.locate({ setView: true, maxZoom: 15 }); };
+  map.on("locationfound", function (e) {
+    L.circleMarker(e.latlng, { radius: 7, color: "#fff", weight: 2, fillColor: "#0f7b8a", fillOpacity: 1 })
+     .addTo(map).bindPopup("現在地");
+  });
+  map.on("locationerror", function () { alert("現在地を取得できませんでした。"); });
+  // 地図を動かしてもマーカーは作り直さない。作り直すと開いているポップアップが消える。
+  map.on("moveend", function () { if ($("panel").classList.contains("open")) renderList(); });
+
+  $("credit").innerHTML =
+    "施設情報は<a href=\"https://sauna-ikitai.com/\" target=\"_blank\" rel=\"noopener\">サウナイキタイ</a>"
+    + "と各施設の公式サイトから集めたものです。<b>料金・定休日・営業時間は変わります。"
+    + "お出かけ前に必ず公式情報でご確認ください。</b><br>"
+    + "登場回は Wikipedia「サ道」の放送日程表にもとづいています。<br>"
+    + "地図：<a href=\"https://www.openstreetmap.org/copyright\" target=\"_blank\" rel=\"noopener\">"
+    + "© OpenStreetMap contributors</a>";
+
+  fetch("saunas.json?v=1").then(function (r) { return r.json(); }).then(function (data) {
+    saunas = data.saunas;
+    series = data.series.map(function (s) { return s.key; });
+    data.series.forEach(function (s) { seriesName[s.key] = s.name; seriesAir[s.key] = s.air; });
+
+    saunas.forEach(makeMarker);
+    toggleChips("sexChips", SEX, ["both", "male", "closed", "private"], active.sexes);
+    toggleChips("roleChips", ROLE_GROUPS, ["visit", "cameo"], active.groups);
+    buildSeriesChips();
+    applyFilter();
+
+    // 全国に散っているので、施設が一番密集する東京まわりから始める
+    var core = saunas.filter(function (s) {
+      return s.lat > 35.4 && s.lat < 35.9 && s.lng > 139.4 && s.lng < 140.0;
+    });
+    if (core.length) fitInitial(L.latLngBounds(core.map(function (s) { return [s.lat, s.lng]; })).pad(0.05));
+  }).catch(function (e) {
+    $("count").textContent = "データを読み込めませんでした";
+    console.error(e);
+  });
+})();
+</script>
+</body>
+</html>
