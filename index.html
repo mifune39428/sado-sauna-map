@@ -256,19 +256,21 @@
     main:      { label: "メイン",   short: "" },
     sub:       { label: "登場",     short: "登場" },
     flashback: { label: "回想",     short: "回想" },
-    footage:   { label: "参考映像", short: "参考映像" }
+    footage:   { label: "参考映像", short: "参考映像" },
+    exterior:  { label: "外観のみ", short: "外観のみ" }
   };
   // メイン／登場をまとめて「実際に訪れた回」、回想／参考映像を「ちらっと出た回」として絞り込む
-  var ROLE_GROUP = { main: "visit", sub: "visit", flashback: "cameo", footage: "cameo" };
+  var ROLE_GROUP = { main: "visit", sub: "visit",
+                     flashback: "cameo", footage: "cameo", exterior: "cameo" };
   var ROLE_GROUPS = {
-    visit: { label: "本編で訪れた施設", color: "#0f7b8a" },
-    cameo: { label: "回想・参考映像",   color: "#94908a" }
+    visit: { label: "本編で訪れた施設",        color: "#0f7b8a" },
+    cameo: { label: "回想・参考映像・外観のみ", color: "#94908a" }
   };
 
   var SERIES_COLORS = {
     s1: "#c0522a", sp2019: "#2f6f9e", sp2021w: "#7a6cc4", s2: "#1f7a6a",
     sp2022: "#9a4f8e", sp2023: "#b0862a", sp2024: "#b4443c",
-    offroad: "#4f7d2c", sp2025: "#2b8fa0"
+    offroad: "#4f7d2c", sp2025: "#2b8fa0", s2026: "#6b8f1f"
   };
 
   var map = L.map("map", { zoomControl: false }).setView([35.68, 139.75], 11);
@@ -575,7 +577,10 @@
   $("grip").onclick   = function () { setPanel(false); };
   $("selAll").onclick  = function () { setSeries(function () { return true; }); };
   $("selNone").onclick = function () { setSeries(function () { return false; }); };
-  $("selDrama").onclick = function () { setSeries(function (k) { return k === "s1" || k === "s2"; }); };
+  // 連続ドラマ = 2019のシーズン1、サ道2021、5日連続放送のサ道2026
+  $("selDrama").onclick = function () {
+    setSeries(function (k) { return k === "s1" || k === "s2" || k === "s2026"; });
+  };
   $("q").oninput = function () { active.q = this.value.trim().toLowerCase(); applyFilter(); };
   $("locate").onclick = function () { map.locate({ setView: true, maxZoom: 15 }); };
   map.on("locationfound", function (e) {

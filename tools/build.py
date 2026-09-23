@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """ikitai.json + 各話データ を合わせて saunas.json を作る"""
-import json, re
+import json, os, re
 
-IK = {r["id"]: r for r in json.load(open("ikitai.json"))}
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+IK = {r["id"]: r for r in json.load(open(os.path.join(ROOT, "tools", "ikitai.json")))}
 
 SERIES = [
     ("s1",      "サ道",            2019, "2019年7月20日〜10月5日"),
@@ -15,6 +17,7 @@ SERIES = [
     ("sp2024",  "2024年冬SP",      2024, "2024年12月21日"),
     ("offroad", "サ道 off-road",   2025, "2025年3月26日配信"),
     ("sp2025",  "2025年冬SP",      2025, "2025年12月30日"),
+    ("s2026",   "サ道2026",        2026, "2026年9月19日〜23日"),
 ]
 
 EP_TITLE = {
@@ -35,6 +38,8 @@ EP_TITLE = {
     "sp2024": {0: "誰しも 何かを胸にととのう"},
     "sp2025": {0: "ぬくもりに思いを馳せ ととのう"},
     "offroad": {1: "悠久の時を越えてととのう（前編）", 2: "悠久の時を越えてととのう（後編）"},
+    # 5話とも共通サブタイトルは「人生をサボりながら、ととのう」で、各話に小題が付く
+    "s2026": {1: "渇き", 2: "出会い", 3: "焦り", 4: "サボり", 5: "満ちる"},
 }
 
 S2_FOOTAGE = [("s2", 1, "footage"), ("s2", 2, "footage"), ("s2", 3, "footage"),
@@ -226,25 +231,54 @@ F = [
  (1550, "サウナひろい（広の湯）", "both", "男女とも可",
   "サウナ 大人1,100円（女性800円）／銭湯のみ450円", "2023年冬SPの参考映像として登場。", [("sp2023",0,"footage")]),
  (80262, "泊まれるサウナ屋さん 品川サウナ", "male", "男性専用",
-  "平日 60分980円／90分1,280円／120分1,580円", "2025年冬SPの参考映像として登場。", [("sp2025",0,"footage")]),
+  "平日 60分980円／90分1,280円／120分1,580円",
+  "2025年冬SPの参考映像として登場。サ道2026 第一話では、ナカタが入ろうとしたものの仕事の電話が来て入れなかった。",
+  [("sp2025",0,"footage"),("s2026",1,"exterior")]),
+
+ # ── サ道2026（2026年9月19〜23日・全5話） ──
+ (1934, "改良湯", "both", "男女とも可",
+  "入浴550円＋サウナ550円（レンタルタオル150円）",
+  "第一話でナカタが向かうも、仕事の電話で入れなかった渋谷の銭湯。",
+  [("s2026",1,"exterior")]),
+ (1846, "ジェクサー・フィットネス&スパ24 新宿", "both", "男女とも可（会員制）",
+  "ジム&サウナスパ会員 月額11,330円ほか（ビジター利用は要問い合わせ）",
+  "第三話で蒸くんが使うスポーツクラブ。新宿駅新南改札すぐ。毎週金曜が休館日。",
+  [("s2026",3,"sub")]),
+ ("saitoyu", "日暮里 斉藤湯", "both", "男女とも可（サウナは無い）",
+  "入浴550円（東京都の公衆浴場料金）",
+  "第四話で偶然さんが訪れる荒川区の銭湯。サウナは無く、作中では電気風呂が取り上げられた。",
+  [("s2026",4,"sub")]),
+ (100877, "高輪SAUNAS", "both", "男女とも可（男女別・料金が別）",
+  "平日 男性3,700円／女性3,200円（4時間）。土日祝は男性4,400円／女性3,900円",
+  "最終話の舞台。2026年2月に高輪ゲートウェイのニュウマン高輪にできた新しい施設。",
+  [("s2026",5,"main")]),
 ]
 
 MANUAL = {
  "greensauna": dict(lat=35.327576, lng=139.345428, address="神奈川県平塚市錦町1-18",
                     holiday=["—（閉館）"], hours_short="—（2020年4月28日で閉館）", hours=[],
-                    fee=[], hp=[], tel=[], type=["温浴施設（閉館）"]),
+                    fee=[], hp=[], tel=[], type=["温浴施設（閉館）"], status="closed"),
  "luova": dict(lat=35.174187, lng=136.898193, address="愛知県名古屋市中区丸の内2-15-25 タマディック名古屋ビル",
                holiday=["—（非公開）"], hours_short="—（一般利用不可）", hours=[],
                fee=[], hp=["https://www.tamadic.co.jp/"], tel=[], type=["社内サウナ（非公開）"]),
+ # サウナが無いためサウナイキタイに載っていない。座標は国土地理院のジオコーディング。
+ # 公式サイト（saito-yu.com）はドメインが失効していたので付けない。
+ "saitoyu": dict(lat=35.729374, lng=139.773193, address="東京都荒川区東日暮里6-59-2",
+                 holiday=["金曜日"], hours_short="14:00〜23:30（最終入場23:00）", hours=[],
+                 fee=[], hp=[], tel=["03-3801-4022"], type=["銭湯"], status="open"),
 }
 
 # 出典（サウナイキタイ）の定休日欄が「なし」でも、備考に休業日が書かれているもの
 HOLIDAY_OVERRIDE = {
     7302: "毎月5・15・25・26日",
     793: "水曜日／木曜日",
+    1934: "土曜日",          # イキタイは「なし」だが公式は土曜定休
 }
 HOURS_OVERRIDE = {
-    793: "14:00〜21:00",   # 公式サイトの記載
+    793: "14:00〜21:00",     # 公式サイトの記載
+    1934: "12:00〜23:30",
+    1846: "平日 6:30〜23:00／土 8:00〜22:00／日祝 8:00〜20:00（ジムエリアは24時間）",
+    100877: "11:00〜26:00",
 }
 
 DAYS = ["月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日", "日曜日"]
@@ -293,8 +327,10 @@ for sid, name, sex, sex_note, fee_short, memo, apps in F:
         m = MANUAL[sid]
         rec = dict(name=name, sex=sex, sex_note=sex_note, fee_short=fee_short, memo=memo,
                    lat=m["lat"], lng=m["lng"], address=m["address"], holiday="／".join(m["holiday"]),
-                   hours_short=m["hours_short"], hours_lines=[], fee_lines=[], hp="", tel="",
-                   type=m["type"][0], ikitai="", status="closed" if sid == "greensauna" else "private")
+                   hours_short=m["hours_short"], hours_lines=[], fee_lines=[],
+                   hp=(m.get("hp") or [""])[0], tel=(m.get("tel") or [""])[0],
+                   type=m["type"][0], ikitai="",
+                   status=m.get("status", "private"))
     else:
         r = IK[sid]
         hs, extra = summarize_hours(r.get("hours_blocks", []))
@@ -324,7 +360,7 @@ out.sort(key=lambda r: ([x[0] for x in SERIES].index(r["series"][0]),
                         min(a["ep"] for a in r["apps"] if a["s"] == r["series"][0])))
 json.dump({"series": [dict(key=k, name=n, year=y, air=a) for k, n, y, a in SERIES],
            "saunas": out},
-          open("saunas.json", "w"), ensure_ascii=False, indent=1)
+          open(os.path.join(ROOT, "saunas.json"), "w"), ensure_ascii=False, indent=1)
 
 print("件数", len(out))
 for r in out:
